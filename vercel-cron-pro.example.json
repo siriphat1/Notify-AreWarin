@@ -1,0 +1,6 @@
+{
+  "framework": null,
+  "crons": [
+    {"path": "/api/cron", "schedule": "*/5 * * * *"}
+  ]
+}

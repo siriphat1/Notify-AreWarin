@@ -1,0 +1,10 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // All student and billing reads/writes go through authenticated Vercel API functions.
+    // Never open these rules to test mode on a public site.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

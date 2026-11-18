@@ -1,47 +1,42 @@
-# AreWarin Tutor OS — v1 prototype
+# AreWarin Tutor OS — Firebase Edition (v2.0)
 
-## สิ่งที่เปิดใช้งานได้ทันที
+Modern Bento Grid tutoring management site, adapted from v1.3. Client-side teacher login uses Firebase Auth; all private data reads/writes and LINE actions use Vercel Node Functions with Firebase Admin SDK. Students authenticate via LINE LIFF ID tokens, verified server-side with LINE. Data lives in Firestore.
 
-- หน้า Dashboard ภาษาไทย รองรับมือถือ
-- เพิ่มนักเรียน สร้างคอร์ส ลงทะเบียนคอร์ส
-- สร้างคลาสและใส่ลิงก์ Meet/Zoom
-- บันทึกชั่วโมงเรียนและแสดงชั่วโมงคงเหลือ
-- แจ้งลาและรับทราบคำขอ ประกาศ และใบแจ้งค่าเรียน
-- ตัวอย่างการสร้างรหัสเชิญ (DEMO เท่านั้น)
+**No terminal or localhost needed for deployment.** Upload root contents to GitHub through browser → Import on Vercel → set Firebase/LINE environment variables and `config.js` through web UIs.
 
-**สำคัญ:** หน้าจอเป็น interactive prototype เท่านั้น ข้อมูลถูกเก็บใน localStorage ของเครื่อง ไม่ใช่ระบบหลายผู้ใช้ ไม่ควรใส่ข้อมูลนักเรียนจริง ข้อมูลตัวอย่างไม่มีการเชื่อม Supabase/LINE และไม่มีการส่งแจ้งเตือนจริง
+See [INSTALL_TH.md](INSTALL_TH.md) for a complete Thai step-by-step guide.
 
-## เปิดเว็บ
+## Entry points
 
-ต้องใช้ local web server เพราะ src.js เป็น JavaScript module:
+- `/` / `index.html` — teacher admin Manager (Firebase email/password, exact `ADMIN_UID` enforced in API)
+- `/student.html` — student portal (LINE LIFF + activation code)
+- `/api/data` — authorized teacher data GET/PUT (revision guard)
+- `/api/activation` — admin-only one-time invitation code
+- `/api/link` — securely verify LINE ID token and exchange activation code
+- `/api/student` — student-owned reads and self-service leave/renew/stop requests
+- `/api/cron` — authenticated due-reminder engine (1 day/1 hour)
 
-```bash
-python -m http.server 8000
-```
+## Important security constraints
 
-เปิด http://localhost:8000
+- **Never upload** Firebase Service Account JSON or LINE Channel Access Token to GitHub. Keep them only in Vercel Environment Variables.
+- `config.js` is public and must include **only** web config and LIFF ID.
+- Firestore security rules must be deny-all for browsers (`firestore.rules`). Server access is only via Firebase Admin SDK.
+- The LINE ID token is verified by LINE servers, not trusted merely as user-supplied `lineUserId`.
+- New LINE activation codes are cryptographically random, one-time, and valid 7 days. Send privately.
+- Teacher access is restricted to Firebase Auth UID matching `ADMIN_UID` in Vercel.
 
-## Deploy Vercel
+## Known limitations
 
-อัปโหลดทั้งโฟลเดอร์เป็น GitHub repository แล้ว Import ไปยัง Vercel (Framework Preset: Other, Output Directory: `.`) หน้าเว็บ demo ทำงานโดยไม่ต้องตั้งค่า Environment Variables
+- Uses one revisioned Firestore data document for backwards compatibility; not suitable for multi-school/high-concurrency production without collection-wise migration.
+- Recurring automatic notifications require a frequent external scheduler. Pro Cron example included; Hobby default `vercel.json` has no Cron and therefore won't automatically send timed notifications.
+- Student and teacher actions share the same revisioned state; teacher must reload after student submits a request to avoid conflicts.
+- Do not use for real student financial data until you complete a privacy, permissions and audit review.
 
-## การเชื่อมต่อระบบจริง (ยังไม่รวมใน prototype)
+## Official references
 
-1. สร้าง Supabase project **ใหม่** แล้วรัน `supabase/schema.sql` ใน SQL Editor
-2. สร้าง Supabase Auth สำหรับ Admin/Staff และสร้าง API server-side ที่ตรวจ JWT, organization_id และ role ก่อนเขียนข้อมูล
-3. เพิ่มองค์กรและ Owner ผ่านขั้นตอน provisioning ฝั่ง server ที่ได้รับสิทธิ์เท่านั้น
-4. ทำการเพิ่มนักเรียนผ่าน Backend; generate activation code แบบ CSPRNG, เก็บเฉพาะ SHA-256/HMAC hash, มี expiry และ one-time redemption ใน transaction
-5. ตั้ง LINE Login channel + LIFF; verify LINE ID token ฝั่ง server และตรวจ audience/issuer/expiry ก่อนผูก line_user_id กับ student_id; ใช้ LINE OA Messaging API สำหรับส่งข้อความหลังตรวจความยินยอมและสถานะการเป็นเพื่อน
-6. สร้าง notification queue เมื่อเพิ่มหรือแก้ไข class_sessions: 1 วันและ 1 ชั่วโมงก่อนเริ่มตาม timezone Asia/Bangkok; cancel/reschedule เมื่อคลาสเปลี่ยนเวลา; ป้องกันการส่งซ้ำด้วย idempotency
-7. ใช้ Vercel Cron เรียก server endpoint ที่ตรวจ `CRON_SECRET`, claim jobs แบบ atomic, retry แบบ bounded, เก็บ delivery logs และตรวจโควตาข้อความ LINE
-8. บันทึก attendance และ hour_transactions ใน transaction เดียวพร้อม row lock; ห้ามหักชั่วโมงซ้ำ; ตรวจ enrollment/course/session/org ตรงกัน
-9. สร้าง Student/Parent Portal ที่ใช้ identity จริงและ RLS หรือ server-side authorization; จำกัดการดูข้อมูลการเงินตามสิทธิ์
-10. ทำ audit trail, data retention, consent, payment verification และทดสอบ RLS ก่อนใช้งานจริง
-
-**อย่านำโค้ดสาธิต localStorage นี้ไปใช้กับข้อมูลนักเรียนจริงโดยไม่สร้าง authentication, authorization และ backend ให้ครบ**
-
-## รายการไฟล์
-
-- `index.html` UI responsive
-- `src.js` พฤติกรรมหน้า demo
-- `supabase/schema.sql` โครงสร้างฐานข้อมูลเริ่มต้น พร้อม RLS แบบปิดการเขียนจาก client
+- https://firebase.google.com/docs/web/setup
+- https://firebase.google.com/docs/admin/setup
+- https://firebase.google.com/docs/firestore/security/get-started
+- https://developers.line.biz/en/docs/liff/registering-liff-apps/
+- https://developers.line.biz/en/docs/line-login/verify-id-token/
+- https://vercel.com/docs/functions
