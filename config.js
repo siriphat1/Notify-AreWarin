@@ -1,12 +1,5 @@
-// PUBLIC WEB SETTINGS. Edit this file in GitHub using the pencil icon.
-// These are Firebase *web app* settings, NOT the private service account key.
-window.AWT_CONFIG = {
-  firebase: {
-    apiKey: "PASTE_FIREBASE_WEB_API_KEY",
-    authDomain: "PASTE_PROJECT_ID.firebaseapp.com",
-    projectId: "PASTE_PROJECT_ID",
-    appId: "PASTE_FIREBASE_WEB_APP_ID"
-  },
-  liffId: "PASTE_LINE_LIFF_ID",
-  oaFriendUrl: "" // Optional: https://lin.ee/your-official-account
-};
+// Public web configuration. This is a publishable key, NOT a service-role or secret key.
+window.AWT_CONFIG = Object.freeze({
+  supabaseUrl: 'https://wdatmgdgppikecqqxemz.supabase.co',
+  supabasePublishableKey: 'sb_publishable_V8U8KGCKSnlw6zMEWe95ag_YAkz5ai-'
+});
