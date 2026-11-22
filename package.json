@@ -1,10 +1,8 @@
 {
-  "name": "arewarin-tutor-os-firebase",
-  "version": "2.0.0",
+  "name": "arewarin-tutor-os-line",
   "private": true,
-  "description": "AreWarin Tutor OS — Firebase + LINE LIFF + Vercel",
-  "dependencies": {
-    "firebase-admin": "^13.5.0"
-  },
-  "engines": {"node": ">=20"}
+  "version": "2.8.0",
+  "description": "AreWarin Tutor OS — LINE LIFF + Supabase Vercel Functions",
+  "engines": { "node": ">=20" },
+  "dependencies": { "@supabase/supabase-js": "^2.49.0" }
 }
