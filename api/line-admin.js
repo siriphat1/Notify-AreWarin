@@ -1,5 +1,5 @@
 'use strict';
-const {db,send,goodId,manager,push,classLabel,bkk,linkConfirmationMessage}=require('../lib/awt-server');
+const {db,send,goodId,manager,push,classLabel,bkk,linkConfirmationMessage,attendanceSummary}=require('../lib/awt-server');
 async function recipientsForSession(ss){
  let ens=[];
  if(ss.participants_locked){
@@ -15,6 +15,50 @@ module.exports=async(req,res)=>{
  if(req.method!=='POST')return send(res,405,{error:'Only POST'});
  try{
   const admin=await manager(req),body=req.body||{},action=String(body.action||'');
+  if(action==='attendance-notify'){
+   if(!goodId(body.enrollmentId)||!goodId(body.sessionId))return send(res,400,{error:'ข้อมูลการลงเวลาไม่ถูกต้อง'});
+   // Read the saved record on the server; never trust hours or LINE IDs from browser.
+   const summary=await attendanceSummary(admin.organization_id,body.enrollmentId,body.sessionId);
+   if(!summary)return send(res,409,{error:'ยังไม่มีการลงเวลาที่บันทึกสำเร็จ'});
+   if(!summary.line||summary.line.notifications_enabled===false){
+    return send(res,200,{ok:true,notification:'not_linked',message:'บันทึกเวลาแล้ว แต่ยังไม่ได้ผูก LINE หรือปิดรับแจ้งเตือน'});
+   }
+   // The unique attendance-kind index prevents duplicate pushes for the same stored state.
+   const kind=summary.kind;
+   const scope=()=>db().from('awt_notification_jobs')
+    .select('id,status,attempts').eq('organization_id',admin.organization_id)
+    .eq('student_id',summary.enrollment.student_id).eq('session_id',body.sessionId)
+    .eq('kind',kind);
+   const created=await db().from('awt_notification_jobs').insert({
+     organization_id:admin.organization_id,student_id:summary.enrollment.student_id,
+     session_id:body.sessionId,enrollment_id:body.enrollmentId,kind,
+     scheduled_at:new Date().toISOString(),status:'pending'
+   }).select('id,status,attempts').maybeSingle();
+   if(created.error&&created.error.code!=='23505')throw created.error;
+   const job=created.data||(await scope().maybeSingle()).data;
+   if(!job)return send(res,503,{error:'ไม่สามารถตรวจสอบรายการแจ้งเตือน'});
+   if(job.status==='sent')return send(res,200,{ok:true,notification:'already_sent',message:'แจ้งเตือนรายการนี้แล้ว'});
+   if(job.status==='processing')return send(res,200,{ok:true,notification:'processing',message:'LINE กำลังประมวลผลข้อความ'});
+   // Acquire only once: concurrent submissions must not push multiple times.
+   const lock=await db().from('awt_notification_jobs').update({
+     status:'processing',attempts:(job.attempts||0)+1,locked_at:new Date().toISOString()
+   }).eq('id',job.id).in('status',['pending','failed']).select('id').maybeSingle();
+   if(lock.error)throw lock.error;
+   if(!lock.data)return send(res,200,{ok:true,notification:'processing',message:'LINE กำลังประมวลผลข้อความ'});
+   try{
+     const receipt=await push(summary.line.line_user_id,summary.text);
+     const saved=await db().from('awt_notification_jobs')
+       .update({status:'sent',provider_message_id:receipt,locked_at:null})
+       .eq('id',job.id);
+     if(saved.error)throw saved.error;
+     return send(res,200,{ok:true,notification:'accepted',message:'LINE รับคำขอส่งสรุปการเรียนแล้ว'});
+   }catch(err){
+     // Do not undo the already saved attendance; allow retry for this notification.
+     await db().from('awt_notification_jobs').update({status:'failed',locked_at:null})
+       .eq('id',job.id);
+     return send(res,502,{error:'บันทึกเวลาแล้ว แต่ LINE ส่งข้อความไม่สำเร็จ กรุณาตรวจ Token และการเพิ่มเพื่อน OA'});
+   }
+  }
   if(action==='link-confirmation'){
    if(!goodId(body.studentId))return send(res,400,{error:'Invalid student ID'});
    const {data:link,error:linkError}=await db().from('awt_line_accounts').select('line_user_id')
