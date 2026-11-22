@@ -143,7 +143,28 @@ async function submitDialog(form){if(inProgress())return;state.submitting=true;c
  else if(kind==='newLeave'){if(!classesFor(v.student_id).some(s=>s.id===v.session_id && s.status==='scheduled'))throw new Error('นักเรียนไม่ได้ลงทะเบียนคลาสนี้');await insertRow('leave_requests',{student_id:v.student_id,session_id:v.session_id,reason:v.reason.trim()})}
  else if(kind==='newInvoice')await insertRow('invoices',{student_id:v.student_id,amount:Number(v.amount),due_date:v.due_date});
  else if(kind==='newAnnouncement')await insertRow('announcements',{title:v.title.trim(),body:v.body.trim()});
- else if(kind==='attendanceFor'){const {data,error}=await state.db.rpc('record_timed_attendance',{p_enrollment_id:v.enrollment_id,p_session_id:v.session_id,p_status:v.status,p_lesson_date:v.lesson_date,p_checkin:v.status==='present'?v.checkin:null,p_checkout:v.status==='present'?v.checkout:null});if(error)throw error;toast(`บันทึก ${formatHours(data.recorded_hours)} ชม. • เหลือ ${formatHours(data.remaining_hours)} ชม.`)}
+ else if(kind==='attendanceFor'){
+  const {data,error}=await state.db.rpc('record_timed_attendance',{
+   p_enrollment_id:v.enrollment_id,p_session_id:v.session_id,p_status:v.status,
+   p_lesson_date:v.lesson_date,p_checkin:v.status==='present'?v.checkin:null,
+   p_checkout:v.status==='present'?v.checkout:null
+  });
+  if(error)throw error;
+  // Attendance is already committed; never treat a LINE failure as a failed attendance save.
+  let notificationMessage='';let notificationWarning=false;
+  try{
+   const result=await lineAdminRequest({action:'attendance-notify',enrollmentId:v.enrollment_id,sessionId:v.session_id});
+   notificationMessage=result.message||'ระบบรับรายการแจ้งเตือนแล้ว';
+   notificationWarning=result.notification==='not_linked';
+  }catch(lineError){
+   notificationMessage='บันทึกเวลาแล้ว แต่ยังแจ้ง LINE ไม่สำเร็จ: '+(lineError.message||'ตรวจสอบ LINE OA');
+   notificationWarning=true;
+  }
+  state.modal=null;
+  await refresh();
+  toast('บันทึกเวลา '+formatHours(data.recorded_hours)+' ชม. • คงเหลือ '+formatHours(data.remaining_hours)+' ชม.\n'+notificationMessage,notificationWarning);
+  return;
+ }
  state.modal=null;await refresh();if(kind!=='attendanceFor')toast('บันทึกลง Supabase สำเร็จ');
  }catch(err){toast(`บันทึกไม่สำเร็จ: ${err.message||'ตรวจสอบข้อมูล'}`,true);submit.disabled=false}finally{state.submitting=false}}
 async function lineAdminRequest(body){
