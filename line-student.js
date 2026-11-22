@@ -9,7 +9,7 @@ const time=s=>s?new Intl.DateTimeFormat('th-TH',{timeZone:'Asia/Bangkok',hour:'2
 const num=v=>Number(v||0).toLocaleString('th-TH',{maximumFractionDigits:2});
 const validUrl=u=>{try{let x=new URL(u);return x.protocol==='https:'?x.toString():null}catch{return null}};
 const friendUrl=`https://line.me/R/ti/p/${encodeURIComponent(config.lineOABasicId||'@876qlurq')}`;
-let token='',d=null,tab='home',loading=false;
+let token='',d=null,tab='home',loading=false,linkNotice='';
 function message(err){const m=typeof err==='string'?err:err?.message;return safe(m||'ไม่สามารถโหลดข้อมูลได้');}
 function view(content){app.innerHTML=content;}
 function authScreen(msg=''){
@@ -22,7 +22,7 @@ async function call(action,body={}){
 }
 function claimScreen(msg=''){
  view(`<div class="line-auth"><section class="line-card"><div class="line-brand">✦ AreWarin Tutor</div><p class="line-sub">CONNECT LINE ACCOUNT</p><h1>ผูกบัญชีนักเรียน</h1><p>เข้าสู่ระบบ LINE แล้ว ให้กรอกรหัสเชิญที่ครูส่งให้เพื่อเปิดข้อมูลการเรียน</p>${msg?`<div class="line-note line-error">${safe(msg)}</div>`:''}<form id="linkForm" class="line-field"><label for="code">รหัสเชิญ</label><input class="line-input" id="code" name="code" autocomplete="off" placeholder="AWT-XXXXXXXX..." required maxlength="40"><button class="line-btn" type="submit">ผูก LINE กับนักเรียน</button></form><div class="line-actions"><a class="line-btn secondary" href="${safe(friendUrl)}" target="_blank" rel="noopener">เพิ่มเพื่อน LINE OA</a><button class="line-btn outline" id="signout">เปลี่ยน LINE</button></div></section></div>`);
- document.getElementById('linkForm').onsubmit=async e=>{e.preventDefault();const btn=e.target.querySelector('button');btn.disabled=true;try{await call('claim',{code:e.target.elements.code.value.trim()});await load();}catch(err){claimScreen(message(err));}finally{btn.disabled=false;}};
+ document.getElementById('linkForm').onsubmit=async e=>{e.preventDefault();const btn=e.target.querySelector('button');btn.disabled=true;try{const result=await call('claim',{code:e.target.elements.code.value.trim()});linkNotice=result.confirmationStatus==='accepted'?'ผูกบัญชีสำเร็จแล้ว! ระบบส่งคำขอยืนยันไปที่แชต LINE OA แล้ว':'ผูกบัญชีสำเร็จแล้ว แต่ยังส่ง LINE ยืนยันไม่ได้ กรุณาเพิ่มเพื่อน LINE OA หรือแจ้งครู';await load();}catch(err){claimScreen(message(err));}finally{btn.disabled=false;}};
  document.getElementById('signout').onclick=()=>window.liff.logout()||location.reload();
 }
 const course=id=>d.courses.find(c=>c.id===id);
@@ -32,7 +32,7 @@ const pill=(text,warning=false)=>`<span class="line-tag ${warning?'warn':''}">${
 const listEmpty=text=>`<p class="line-mut">${safe(text)}</p>`;
 function shell(body){
  const options=[['home','ภาพรวม'],['classes','ตารางเรียน'],['courses','คอร์ส'],['leave','แจ้งลา'],['finance','ค่าเรียน'],['news','ประกาศ']];
- view(`<div class="line-app"><header class="line-head"><div><div class="line-brand">✦ AreWarin Tutor</div><div class="line-sub">สมุดการเรียน · ${safe(d.student.full_name)}</div></div><button class="line-btn secondary" id="refresh">อัปเดต</button></header><nav class="line-tabs">${options.map(([id,name])=>`<button data-tab="${id}" class="${tab===id?'active':''}">${name}</button>`).join('')}</nav>${body}<p class="line-mut line-small" style="text-align:center;margin:25px 0">ข้อมูลจาก Supabase · บัญชีผูกผ่าน LINE อย่างปลอดภัย</p></div>`);
+ view(`<div class="line-app"><header class="line-head"><div><div class="line-brand">✦ AreWarin Tutor</div><div class="line-sub">สมุดการเรียน · ${safe(d.student.full_name)}</div></div><button class="line-btn secondary" id="refresh">อัปเดต</button></header><nav class="line-tabs">${options.map(([id,name])=>`<button data-tab="${id}" class="${tab===id?'active':''}">${name}</button>`).join('')}</nav>${linkNotice?`<div class="line-note" role="status">${safe(linkNotice)}</div>`:'' }${body}<p class="line-mut line-small" style="text-align:center;margin:25px 0">ข้อมูลจาก Supabase · บัญชีผูกผ่าน LINE อย่างปลอดภัย</p></div>`);
  document.getElementById('refresh').onclick=load;
  document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{tab=b.dataset.tab;render();});
 }
@@ -56,7 +56,7 @@ function render(){if(!d)return;const pages={home,classes,courses,leave,finance,n
  document.querySelectorAll('[data-course]').forEach(b=>b.onclick=async()=>{const type=b.dataset.type;if(!confirm(type==='renew'?'ต้องการส่งคำขอต่อคอร์สให้ครู?':'ต้องการส่งคำขอยุติเมื่อจบคอร์ส?'))return;b.disabled=true;try{await call('course-request',{enrollmentId:b.dataset.course,requestType:type});await load();}catch(e){alert(message(e));b.disabled=false;}});
  const f=document.getElementById('leaveForm');if(f)f.onsubmit=async e=>{e.preventDefault();const btn=f.querySelector('[type=submit]');btn.disabled=true;try{await call('leave',{sessionId:f.elements.sessionId.value,reason:f.elements.reason.value.trim()});await load();}catch(err){alert(message(err));btn.disabled=false;}};
 }
-async function load(){view('<div class="line-auth"><section class="line-card">กำลังโหลดข้อมูลจาก Supabase…</section></div>');try{const r=await call('dashboard');if(!r.linked){claimScreen();return;}d=r;render();}catch(e){view(`<div class="line-auth"><section class="line-card"><h1>โหลดข้อมูลไม่สำเร็จ</h1><div class="line-note line-error">${message(e)}</div><button id="retry" class="line-btn">ลองอีกครั้ง</button></section></div>`);document.getElementById('retry').onclick=load;}}
+async function load(){view('<div class="line-auth"><section class="line-card">กำลังโหลดข้อมูลจาก Supabase…</section></div>');try{const r=await call('dashboard');if(!r.linked){claimScreen();return;}d=r;render();}catch(e){view(`<div class="line-auth"><section class="line-card"><h1>โหลดข้อมูลไม่สำเร็จ</h1>${linkNotice?`<div class="line-note">${safe(linkNotice)}</div>`:'' }<div class="line-note line-error">${message(e)}</div><button id="retry" class="line-btn">ลองอีกครั้ง</button></section></div>`);document.getElementById('retry').onclick=load;}}
 async function init(){if(!window.liff||!config.liffId){authScreen('ยังไม่ได้ตั้งค่า LIFF ID');return;}try{await window.liff.init({liffId:config.liffId});if(!window.liff.isLoggedIn()){authScreen();return;}token=window.liff.getIDToken();if(!token)throw new Error('ไม่ได้รับ LINE ID Token กรุณาเปิด openid scope ใน LIFF');await load();}catch(e){authScreen(message(e));}}
 init();
 })();
