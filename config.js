@@ -1,5 +1,6 @@
-// Public web configuration. This is a publishable key, NOT a service-role or secret key.
+// AreWarin Tutor OS — public browser config for the NEW Supabase project.
+// A publishable key is safe for browser use only when RLS is configured correctly.
 window.AWT_CONFIG = Object.freeze({
-  supabaseUrl: 'https://wdatmgdgppikecqqxemz.supabase.co',
-  supabasePublishableKey: 'sb_publishable_V8U8KGCKSnlw6zMEWe95ag_YAkz5ai-'
+  supabaseUrl: 'https://ihmiqtwclnqrezsnswfz.supabase.co',
+  supabasePublishableKey: 'sb_publishable_wODtFcX141odUfA1FxZckQ_OXXkOZLR'
 });
