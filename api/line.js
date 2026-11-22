@@ -1,5 +1,6 @@
 'use strict';
 const {db,send,goodId,textSafe,lineIdentity,currentLink,validUrl,push,linkConfirmationMessage}=require('../lib/awt-server');
+const {linkCard}=require('../lib/awt-flex');
 const uuid=/^[0-9a-f-]{36}$/i;
 async function getMany(table,col,ids,cols='*'){
  if(!ids.length)return [];
@@ -48,7 +49,7 @@ module.exports=async(req,res)=>{
     const {data:student, error:studentError}=await db().from('awt_students')
      .select('full_name').eq('id',(await currentLink(user.sub))?.student_id).maybeSingle();
     if(studentError)throw studentError;
-    await push(user.sub,linkConfirmationMessage(student));
+    await push(user.sub,linkCard(student,process.env.AWT_STUDENT_URL));
     confirmationStatus='accepted'; // LINE accepted the request; delivery is not guaranteed.
    }catch(notifyError){
     console.warn('[AWT] LINE link confirmation could not be sent:',notifyError?.statusCode||'error');
