@@ -41,16 +41,15 @@ module.exports=async(req,res)=>{
    const {data,error}=await db().rpc('awt_claim_line_invite_secure',{p_code:code,p_line_user_id:user.sub});
    if(error)return send(res,400,{error:'รหัสเชิญไม่ถูกต้อง หมดอายุ หรือถูกใช้แล้ว'});
    if(data?.linked!==true)return send(res,500,{error:'ไม่สามารถยืนยันการผูกบัญชีได้'});
-   // Single-use invitation ensures this automatic confirmation happens only on a new link.
-   // A LINE push failure must not undo a successful account link.
+   // The invitation is one-time. Only a newly completed claim generates this message.
+   // LINE delivery failure must never roll back a successfully linked account.
    let confirmationStatus='not_sent';
    try{
-    const link=await currentLink(user.sub);
-    const {data:student,error:studentError}=await db().from('awt_students')
-     .select('full_name').eq('id',link?.student_id).maybeSingle();
+    const {data:student, error:studentError}=await db().from('awt_students')
+     .select('full_name').eq('id',(await currentLink(user.sub))?.student_id).maybeSingle();
     if(studentError)throw studentError;
     await push(user.sub,linkConfirmationMessage(student));
-    confirmationStatus='accepted'; // LINE accepted the request; actual delivery isn't guaranteed.
+    confirmationStatus='accepted'; // LINE accepted the request; delivery is not guaranteed.
    }catch(notifyError){
     console.warn('[AWT] LINE link confirmation could not be sent:',notifyError?.statusCode||'error');
    }
