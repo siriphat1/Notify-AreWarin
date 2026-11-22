@@ -1,5 +1,6 @@
 'use strict';
 const {db,send,push,classLabel,bkk}=require('../lib/awt-server');
+const {classCard,lowHoursCard}=require('../lib/awt-flex');
 const MINUTE=60000,HOUR=60*MINUTE;
 async function participants(ss){
  let studentIds=[];
@@ -39,25 +40,29 @@ async function deliver(job){
   if(line.error||student.error)throw line.error||student.error;
   if(!line.data||line.data.notifications_enabled===false){await db().from('awt_notification_jobs').update({status:'cancelled'}).eq('id',job.id);return 'skipped';}
   let content='';
+  let flexMessage=null;
   if(job.kind==='hours_low'){
    const {data:en,error}=await db().from('awt_enrollments').select('course_id,purchased_hours').eq('id',job.enrollment_id).single();if(error)throw error;
    const {data:trans,error:te}=await db().from('awt_hour_transactions').select('delta_hours').eq('enrollment_id',job.enrollment_id);if(te)throw te;
    const left=Number(en.purchased_hours)+(trans||[]).reduce((n,t)=>n+Number(t.delta_hours),0);
    if(left>4){await db().from('awt_notification_jobs').update({status:'cancelled'}).eq('id',job.id);return 'skipped';}
    const {data:c}=await db().from('awt_courses').select('name').eq('id',en.course_id).maybeSingle();
+   flexMessage=lowHoursCard(c?.name||'คอร์สเรียน',Math.max(0,Math.round(left*100)/100),process.env.AWT_STUDENT_URL);
    content=`AreWarin Tutor 🧬\nแจ้งเตือนชั่วโมงเรียนใกล้หมด\nคอร์ส: ${c?.name||'คอร์สเรียน'}\nคงเหลือ ${Math.max(0,Math.round(left*100)/100)} ชั่วโมง\nเปิดพื้นที่นักเรียนเพื่อเลือก “ต่อคอร์ส” หรือ “ยุติเมื่อจบคอร์ส”\n${process.env.AWT_STUDENT_URL||''}`;
   }else{
    const {data:ss,error}=await db().from('awt_class_sessions').select('topic,starts_at,status,session_type,group_label,meeting_url,cancel_reason').eq('id',job.session_id).maybeSingle();if(error)throw error;
    const isCancel=job.kind.startsWith('cancel_');
    if(!ss||!job.kind.endsWith(new Date(ss.starts_at).toISOString())||(isCancel?ss.status!=='cancelled':ss.status!=='scheduled')){await db().from('awt_notification_jobs').update({status:'cancelled'}).eq('id',job.id);return 'skipped';}
    if(isCancel){
+     flexMessage=classCard(ss,'cancel',process.env.AWT_STUDENT_URL);
      content=`AreWarin Tutor 🧬\nแจ้งยกเลิกคลาส\nหัวข้อ: ${ss.topic}\nประเภท: ${classLabel(ss)}${ss.group_label?' · '+ss.group_label:''}\nเดิมกำหนด: ${bkk(ss.starts_at)} น.\nเหตุผล: ${ss.cancel_reason||'ครูยกเลิกคลาส'}\n${process.env.AWT_STUDENT_URL||''}`;
    }else if(job.kind.startsWith('before_1day_')||job.kind.startsWith('before_1hour_')){
      const label=job.kind.startsWith('before_1day_')?'ล่วงหน้า 1 วัน':'ก่อนเรียน 1 ชั่วโมง';
+     flexMessage=classCard(ss,job.kind.startsWith('before_1day_')?'before_1day':'before_1hour',process.env.AWT_STUDENT_URL);
      content=`AreWarin Tutor 🧬\nแจ้งเตือนเรียน ${label}\nหัวข้อ: ${ss.topic}\nประเภท: ${classLabel(ss)}${ss.group_label?' · '+ss.group_label:''}\nวันเวลา: ${bkk(ss.starts_at)} น.\n${process.env.AWT_STUDENT_URL||''}`;
    }else{await db().from('awt_notification_jobs').update({status:'cancelled'}).eq('id',job.id);return 'skipped';}
   }
-  const receipt=await push(line.data.line_user_id,content);
+  const receipt=await push(line.data.line_user_id,flexMessage||content);
   const {error:e}=await db().from('awt_notification_jobs').update({status:'sent',provider_message_id:receipt,locked_at:null}).eq('id',job.id);if(e)throw e;
   return 'sent';
  }catch(e){
