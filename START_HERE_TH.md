@@ -1,76 +1,28 @@
-# AreWarin Tutor OS — คู่มือย้ายไป Supabase ใหม่ (ไม่ต้องใช้ Terminal)
+# AreWarin Tutor OS v2.4 — แก้ปัญหา SQL ที่ถูกตัดกลางบล็อก
 
-## โปรเจกต์ที่จะใช้
+**ห้ามลบตารางเดิม และไม่ต้องสร้างโปรเจกต์ Supabase ใหม่**. โปรเจกต์นี้ใช้ตาราง `public.awt_*` เท่านั้น ไม่แตะตาราง `public.courses` ที่มีอยู่แล้ว
 
-- Project ID: `ihmiqtwclnqrezsnswfz`
-- Project URL: `https://ihmiqtwclnqrezsnswfz.supabase.co`
-- Publishable Key: ใส่ใน `config.js` ให้เรียบร้อยแล้ว
-- โปรเจกต์เก่า `wdatmgdgppikecqqxemz` ไม่ถูกแก้ไข / ไม่ถูกลบ
+## ติดตั้งผ่านเว็บ Supabase ไม่ใช้ Terminal
 
-**สำคัญ:** ชุดนี้เป็นการเปลี่ยนจุดเชื่อมต่อเว็บไซต์ไปยังฐานข้อมูลใหม่ ยัง **ไม่ใช่การย้ายข้อมูลนักเรียนจากฐานข้อมูลเดิม** ถ้าโปรเจกต์เดิมมีข้อมูลที่ต้องการเก็บ ให้ส่งออก/ย้ายข้อมูลอย่างระมัดระวังก่อนเลิกใช้
+1. ใน Supabase → **Authentication → Users** ให้สร้างบัญชีครูด้วยอีเมลและรหัสผ่าน (ถ้ามีแล้วข้าม)
+2. เข้า SQL Editor → **New query** แล้วกด **Ctrl+A → Delete** เพื่อล้าง SQL เก่าที่ถูกตัดค้าง
+3. เปิด `supabase/01_CREATE_AWT_TABLES.sql` ด้วย Notepad กด **Ctrl+A, Ctrl+C** กลับไป SQL Editor กด **Ctrl+V** แล้วกด **Run**. ต้องเห็น Success
+4. กด **New query** ใหม่ เปิด `supabase/02_POLICIES_AND_OWNER.sql` ด้วย Notepad แล้วเปลี่ยนเฉพาะอีเมลใน `v_owner_email text := '...'` ให้เป็นบัญชีครูจากข้อ 1. **คัดลอกโค้ดทั้งไฟล์** ไปวาง SQL Editor และ Run
+5. กด **New query** อีกครั้ง เปิด `supabase/03_ATTENDANCE_RPC.sql` แล้วคัดลอกทั้งไฟล์ไป Run
+6. ใช้ไฟล์หน้าเว็บชุดนี้แทนชุดเก่าใน GitHub แล้ว Deploy บน Vercel ตามเดิม จากนั้นเข้าเว็บด้วยบัญชีครู
 
-## ทำตามนี้ หาก Supabase ใหม่ยังเป็นโปรเจกต์ว่าง
+**ข้อสำคัญ:** SQL ทั้ง 3 ไฟล์ต้องคัดลอกตั้งแต่บรรทัดแรกถึงบรรทัดสุดท้าย ห้ามไฮไลต์รันเพียงบางบรรทัด และอย่าเลือกฟังก์ชันอัตโนมัติที่เพิ่ม `-- Added by Supabase: ...` ในระหว่างบล็อกฟังก์ชัน โค้ด Step 1 ตั้ง RLS ให้แล้ว
 
-### 1. สร้างบัญชีผู้สอนในโปรเจกต์ใหม่
+## ถ้าขึ้นข้อผิดพลาดอีก
 
-1. เข้า https://supabase.com/dashboard แล้วเลือก **โปรเจกต์ที่มี Project ID = ihmiqtwclnqrezsnswfz** (ดู Settings > General ได้)
-2. ไปที่ **Authentication → Users → Add user**
-3. สร้างบัญชีอีเมลครู + รหัสผ่าน (บัญชีเดิมของโปรเจกต์เก่าไม่ได้ย้ายมาด้วย)
-4. เก็บอีเมลและรหัสผ่านไว้สำหรับเข้าสู่เว็บ
+เปิด SQL Editor ใหม่ แล้วรันคำสั่งตรวจอย่างเดียว:
 
-### 2. รัน SQL ในโปรเจกต์ใหม่ **ครั้งเดียว**
+```sql
+select tablename from pg_catalog.pg_tables
+where schemaname='public' and tablename like 'awt_%'
+order by tablename;
+```
 
-1. ที่ Supabase โปรเจกต์ใหม่ ไปที่ **Table Editor** ตรวจว่าตาราง `students`, `courses`, `staff_members` **ยังไม่มี**
-2. เปิดไฟล์ `supabase/00_INSTALL_NEW_PROJECT_ONCE.sql` ด้วย Notepad
-3. กด Ctrl+F หา **`v_owner_email text :=`**
-4. เปลี่ยนเฉพาะอีเมลตัวอย่างที่อยู่ในบรรทัดนั้น ให้เป็นอีเมลบัญชีครูที่เพิ่งสร้าง เช่น `v_owner_email text := 'teacher@example.com';`
-5. **อย่าแก้** เงื่อนไขตรวจสอบ `if v_owner_email = 'REPLACE_WITH_YOUR_EMAIL@example.com'` ที่อยู่บรรทัดถัดไป
-6. กด Ctrl+A, Ctrl+C แล้วกลับไป **SQL Editor → New query → Ctrl+V → Run**
-7. เมื่อสำเร็จจะเห็น `Success. No rows returned` และตารางต่าง ๆ ใน Table Editor
+ควรเห็น **15 ตาราง** หลัง Step 1. ถ้าพบข้อผิดพลาดให้ส่งเฉพาะข้อความ Error มาตรวจ **ไม่ต้องส่งรหัสผ่านหรือคีย์ลับ**
 
-**ไม่ต้องรัน `01_SCHEMA_NEW_PROJECT.sql` หรือ `02_ENABLE_APP_PASTE.sql` อีก** เพราะ `00_INSTALL_NEW_PROJECT_ONCE.sql` ทำสองส่วนนี้รวมไว้แล้ว
-
-### ถ้า Supabase ใหม่นี้เคยรัน schema.sql ไปแล้ว
-
-- **ห้ามรัน `00_INSTALL_NEW_PROJECT_ONCE.sql`** เพราะจะพยายามสร้างตารางซ้ำ
-- ถ้า `organizations`, `staff_members`, `students`, `courses`, `class_sessions` มีอยู่แล้ว และเป็นตารางของ AreWarin Tutor OS จากไฟล์เดิม ให้รัน **เฉพาะ `supabase/02_ENABLE_APP_PASTE.sql`** หลังเปลี่ยนอีเมลครูในบรรทัด `v_owner_email text := ...`
-- ถ้าเป็นตารางของโปรเจกต์อื่น หรือไม่แน่ใจว่าตารางชื่อเดียวกันเป็นของอะไร **อย่ารัน SQL จนกว่าจะตรวจสอบก่อน**
-
-## 3. เปลี่ยนเว็บไซต์ให้ใช้โปรเจกต์ใหม่
-
-**กรณีเคย Deploy เวอร์ชัน Supabase Connected ผ่าน GitHub/Vercel แล้ว (ง่ายที่สุด)**
-
-1. เข้า GitHub Repository ของ AreWarin Tutor OS
-2. เปิดไฟล์ `config.js` → กดไอคอนดินสอ Edit
-3. แทนที่เนื้อหา `config.js` ด้วยเนื้อหาของ `config.js` **ใน ZIP ชุดใหม่นี้** ทั้งไฟล์
-4. กด Commit changes
-5. ไป Vercel → Deployments → รอให้ Deployment ใหม่ขึ้น Ready แล้วกด Visit
-
-**กรณียังไม่เคย Deploy**
-
-1. แตก ZIP ชุดใหม่ก่อน (ห้ามอัปโหลดไฟล์ ZIP ตรง ๆ ไปเป็นเว็บ)
-2. เข้า https://github.com/new และสร้าง Repo แบบ Private
-3. Upload **เนื้อหาภายในโฟลเดอร์ `AreWarin_Tutor_OS_Supabase_New_Project`** ให้ `index.html`, `app.js`, `style.css`, `config.js` อยู่ระดับบนสุด
-4. ไป https://vercel.com/new → Import Repository → Framework Preset `Other` → Deploy
-
-## 4. ทดลองว่าทำงานจริง
-
-1. เปิดเว็บบน Vercel แล้วเข้าสู่ระบบด้วยบัญชีครูที่สร้างใน **Supabase ใหม่**
-2. ลองเพิ่มนักเรียนสมมติรหัส `DEMO01` และคอร์สสมมติ 10 ชม.
-3. รีเฟรชหน้าเว็บ แล้วยืนยันว่าข้อมูลยังอยู่
-4. เปิด Supabase โปรเจกต์ใหม่ → Table Editor → `students` เพื่อดูว่าข้อมูลทดสอบอยู่ในที่ใหม่
-
-## 5. หากเกิดข้อผิดพลาด
-
-- `Invalid login credentials` → บัญชีครูยังไม่ได้สร้างในโปรเจกต์ใหม่ หรือรหัสผ่านผิด
-- `บัญชีนี้ยังไม่ได้รับสิทธิ์ครู` → เช็กอีเมลใน SQL `v_owner_email`, ยืนยันว่า SQL รันสำเร็จใน **โปรเจกต์ใหม่**
-- `relation does not exist` → ตารางยังไม่ถูกสร้างในโปรเจกต์ใหม่; ตรวจขั้นตอน SQL
-- `permission denied` → ตรวจว่ารันไฟล์ `02_ENABLE_APP_PASTE.sql` (หรือ SQL รวม) สำเร็จและไม่ได้ปิด RLS
-- เว็บยังต่อโปรเจกต์เก่า → ตรวจ GitHub `config.js` และ Vercel Deployment ล่าสุด, รีเฟรชเว็บแบบไม่ใช้แคช
-
-## ความปลอดภัยและสถานะปัจจุบัน
-
-- Publishable Key อยู่ใน frontend ได้ แต่ต้องเปิด RLS ตามไฟล์ SQL
-- **ห้าม** นำ `service_role` / `sb_secret_...` / Database password ใส่ใน `config.js` หรือ GitHub
-- เว็บไซต์ชุดนี้ยังเป็น **Manager** สำหรับครู ส่วน Student LINE Login/LIFF, LINE notification และ Parent Portal ยังไม่ได้เชื่อมจริง
-- ทดลองด้วยข้อมูลสมมติก่อนนำข้อมูลนักเรียนจริงเข้าระบบ
+ไฟล์ชุดนี้ **ยังไม่ได้เชื่อม LINE OA จริง**. การติดตั้ง Supabase และ Manager สำเร็จยังไม่ทำให้แจ้งเตือน LINE อัตโนมัติ
