@@ -1,0 +1,32 @@
+name: AreWarin LINE automatic class reminders
+
+on:
+  schedule:
+    # Every 5 minutes, in UTC. The backend uses actual timestamp for each class.
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: arewarin-line-cron
+  cancel-in-progress: false
+
+jobs:
+  send-reminders:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Trigger secured notification queue
+        env:
+          AWT_CRON_SECRET: ${{ secrets.AWT_CRON_SECRET }}
+        run: |
+          if [ -z "$AWT_CRON_SECRET" ]; then
+            echo "Missing repository secret AWT_CRON_SECRET"
+            exit 1
+          fi
+          curl --fail-with-body --show-error --silent \
+            --connect-timeout 10 --max-time 100 \
+            -H "Authorization: Bearer $AWT_CRON_SECRET" \
+            "https://notify-arewarin.vercel.app/api/line-cron"
