@@ -1,5 +1,6 @@
 'use strict';
 const {db,send,goodId,manager,push,classLabel,bkk,linkConfirmationMessage,attendanceSummary}=require('../lib/awt-server');
+const {linkCard,attendanceCard,testCard,classCard}=require('../lib/awt-flex');
 async function recipientsForSession(ss){
  let ens=[];
  if(ss.participants_locked){
@@ -46,7 +47,7 @@ module.exports=async(req,res)=>{
    if(lock.error)throw lock.error;
    if(!lock.data)return send(res,200,{ok:true,notification:'processing',message:'LINE กำลังประมวลผลข้อความ'});
    try{
-     const receipt=await push(summary.line.line_user_id,summary.text);
+     const receipt=await push(summary.line.line_user_id,attendanceCard(summary,process.env.AWT_STUDENT_URL));
      const saved=await db().from('awt_notification_jobs')
        .update({status:'sent',provider_message_id:receipt,locked_at:null})
        .eq('id',job.id);
@@ -69,14 +70,14 @@ module.exports=async(req,res)=>{
    const {data:student,error:studentError}=await db().from('awt_students').select('full_name')
     .eq('id',body.studentId).eq('organization_id',admin.organization_id).single();
    if(studentError)throw studentError;
-   await push(link.line_user_id,linkConfirmationMessage(student));
+   await push(link.line_user_id,linkCard(student,process.env.AWT_STUDENT_URL));
    return send(res,200,{ok:true,accepted:1});
   }
   if(action==='test'){
    if(!goodId(body.studentId))return send(res,400,{error:'Invalid student ID'});
    const {data,error}=await db().from('awt_line_accounts').select('line_user_id').eq('student_id',body.studentId).eq('organization_id',admin.organization_id).eq('notifications_enabled',true).maybeSingle();if(error)throw error;
    if(!data)return send(res,404,{error:'นักเรียนยังไม่ได้ผูก LINE หรือปิดรับแจ้งเตือน'});
-   await push(data.line_user_id,'AreWarin Tutor 🧬\nทดสอบการแจ้งเตือนสำเร็จจากระบบจัดการเรียน');return send(res,200,{ok:true,sent:1});
+   await push(data.line_user_id,testCard(process.env.AWT_STUDENT_URL));return send(res,200,{ok:true,sent:1});
   }
   if(action==='cancel-class'){
    if(!goodId(body.sessionId))return send(res,400,{error:'Invalid class ID'});
@@ -89,7 +90,7 @@ module.exports=async(req,res)=>{
     const kind='cancel_'+new Date(ss.starts_at).toISOString();
     const {data:created,error:je}=await db().from('awt_notification_jobs').insert({organization_id:ss.organization_id,student_id:t.student_id,session_id:ss.id,kind,scheduled_at:new Date().toISOString(),status:'pending'}).select('id').single();
     if(je){if(je.code==='23505')continue;throw je;}
-    try{const requestId=await push(t.line_user_id,content);await db().from('awt_notification_jobs').update({status:'sent',attempts:1,provider_message_id:requestId}).eq('id',created.id);sent++;}
+    try{const requestId=await push(t.line_user_id,classCard(ss,'cancel',process.env.AWT_STUDENT_URL));await db().from('awt_notification_jobs').update({status:'sent',attempts:1,provider_message_id:requestId}).eq('id',created.id);sent++;}
     catch(e){await db().from('awt_notification_jobs').update({status:'failed',attempts:1}).eq('id',created.id);failed++;}
    }
    return send(res,200,{ok:true,sent,failed,linkedStudents:targets.length});
