@@ -1,5 +1,5 @@
 'use strict';
-const {db,send,goodId,manager,push,classLabel,bkk}=require('../lib/awt-server');
+const {db,send,goodId,manager,push,classLabel,bkk,linkConfirmationMessage}=require('../lib/awt-server');
 async function recipientsForSession(ss){
  let ens=[];
  if(ss.participants_locked){
@@ -15,6 +15,19 @@ module.exports=async(req,res)=>{
  if(req.method!=='POST')return send(res,405,{error:'Only POST'});
  try{
   const admin=await manager(req),body=req.body||{},action=String(body.action||'');
+  if(action==='link-confirmation'){
+   if(!goodId(body.studentId))return send(res,400,{error:'Invalid student ID'});
+   const {data:link,error:linkError}=await db().from('awt_line_accounts').select('line_user_id')
+    .eq('student_id',body.studentId).eq('organization_id',admin.organization_id)
+    .eq('notifications_enabled',true).maybeSingle();
+   if(linkError)throw linkError;
+   if(!link)return send(res,404,{error:'นักเรียนยังไม่ได้ผูก LINE หรือปิดรับแจ้งเตือน'});
+   const {data:student,error:studentError}=await db().from('awt_students').select('full_name')
+    .eq('id',body.studentId).eq('organization_id',admin.organization_id).single();
+   if(studentError)throw studentError;
+   await push(link.line_user_id,linkConfirmationMessage(student));
+   return send(res,200,{ok:true,accepted:1});
+  }
   if(action==='test'){
    if(!goodId(body.studentId))return send(res,400,{error:'Invalid student ID'});
    const {data,error}=await db().from('awt_line_accounts').select('line_user_id').eq('student_id',body.studentId).eq('organization_id',admin.organization_id).eq('notifications_enabled',true).maybeSingle();if(error)throw error;
