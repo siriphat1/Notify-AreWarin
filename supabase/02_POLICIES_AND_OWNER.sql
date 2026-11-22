@@ -121,7 +121,7 @@ grant insert, update on public.awt_invoices to authenticated;
 -- Change only the following example email to your REAL teacher Auth email.
 do $owner$
 declare
-  v_owner_email text := 'REPLACE_WITH_YOUR_EMAIL@example.com';
+  v_owner_email text := 'arewarin.biology@gmail.com';
   v_owner_id uuid;
   v_org_id uuid;
 begin

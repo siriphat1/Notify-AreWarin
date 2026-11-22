@@ -7,7 +7,7 @@
 1. ใน Supabase → **Authentication → Users** ให้สร้างบัญชีครูด้วยอีเมลและรหัสผ่าน (ถ้ามีแล้วข้าม)
 2. เข้า SQL Editor → **New query** แล้วกด **Ctrl+A → Delete** เพื่อล้าง SQL เก่าที่ถูกตัดค้าง
 3. เปิด `supabase/01_CREATE_AWT_TABLES.sql` ด้วย Notepad กด **Ctrl+A, Ctrl+C** กลับไป SQL Editor กด **Ctrl+V** แล้วกด **Run**. ต้องเห็น Success
-4. กด **New query** ใหม่ เปิด `supabase/02_POLICIES_AND_OWNER.sql` ด้วย Notepad แล้วเปลี่ยนเฉพาะอีเมลใน `v_owner_email text := '...'` ให้เป็นบัญชีครูจากข้อ 1. **คัดลอกโค้ดทั้งไฟล์** ไปวาง SQL Editor และ Run
+4. กด **New query** ใหม่ เปิด `supabase/02_POLICIES_AND_OWNER.sql` ด้วย Notepad โดยผมใส่อีเมล `arewarin.biology@gmail.com` ใน `v_owner_email` ให้แล้ว **ไม่ต้องแก้ไข SQL เพิ่ม** หากบัญชีครูใน Authentication ใช้อีเมลนี้. **คัดลอกโค้ดทั้งไฟล์** ไปวาง SQL Editor และ Run
 5. กด **New query** อีกครั้ง เปิด `supabase/03_ATTENDANCE_RPC.sql` แล้วคัดลอกทั้งไฟล์ไป Run
 6. ใช้ไฟล์หน้าเว็บชุดนี้แทนชุดเก่าใน GitHub แล้ว Deploy บน Vercel ตามเดิม จากนั้นเข้าเว็บด้วยบัญชีครู
 
