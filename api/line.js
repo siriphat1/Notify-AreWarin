@@ -1,5 +1,5 @@
 'use strict';
-const {db,send,goodId,textSafe,lineIdentity,currentLink,validUrl}=require('../lib/awt-server');
+const {db,send,goodId,textSafe,lineIdentity,currentLink,validUrl,push,linkConfirmationMessage}=require('../lib/awt-server');
 const uuid=/^[0-9a-f-]{36}$/i;
 async function getMany(table,col,ids,cols='*'){
  if(!ids.length)return [];
@@ -40,7 +40,21 @@ module.exports=async(req,res)=>{
    // Atomic claim in SQL, callable only by server-side service role.
    const {data,error}=await db().rpc('awt_claim_line_invite_secure',{p_code:code,p_line_user_id:user.sub});
    if(error)return send(res,400,{error:'รหัสเชิญไม่ถูกต้อง หมดอายุ หรือถูกใช้แล้ว'});
-   return send(res,200,{ok:true,linked:data?.linked===true});
+   if(data?.linked!==true)return send(res,500,{error:'ไม่สามารถยืนยันการผูกบัญชีได้'});
+   // Single-use invitation ensures this automatic confirmation happens only on a new link.
+   // A LINE push failure must not undo a successful account link.
+   let confirmationStatus='not_sent';
+   try{
+    const link=await currentLink(user.sub);
+    const {data:student,error:studentError}=await db().from('awt_students')
+     .select('full_name').eq('id',link?.student_id).maybeSingle();
+    if(studentError)throw studentError;
+    await push(user.sub,linkConfirmationMessage(student));
+    confirmationStatus='accepted'; // LINE accepted the request; actual delivery isn't guaranteed.
+   }catch(notifyError){
+    console.warn('[AWT] LINE link confirmation could not be sent:',notifyError?.statusCode||'error');
+   }
+   return send(res,200,{ok:true,linked:true,confirmationStatus});
   }
   const link=await currentLink(user.sub);
   if(!link)return send(res,200,{linked:false});
